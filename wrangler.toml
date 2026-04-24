@@ -1,0 +1,8 @@
+name = "slp-sales-dashboard"
+compatibility_date = "2025-06-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "slp-sales-dashboard"
+database_id = "74575f3f-bb5d-4cb4-8332-5bdfd42a3221"
