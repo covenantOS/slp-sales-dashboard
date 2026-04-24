@@ -23,13 +23,26 @@ export function ProductList({ quote, totalsByKey, onItemChange }: Props) {
     onItemChange(key, { included: nextIncluded });
     if (nextIncluded) {
       const p = PRODUCTS[key];
-      // Turn off mutually exclusive products.
       p.mutuallyExclusiveWith?.forEach((k) => {
         if (quote.items[k]?.included) {
           onItemChange(k, { included: false });
         }
       });
     }
+  };
+
+  const checkDisabled = (key: ProductKey): { disabled: boolean; reason?: string } => {
+    const p = PRODUCTS[key];
+    if (p.requiresAnyOf && !quote.items[key]?.included) {
+      const met = p.requiresAnyOf.some((r) => quote.items[r]?.included);
+      if (!met) {
+        return {
+          disabled: true,
+          reason: 'Requires Local SEO',
+        };
+      }
+    }
+    return { disabled: false };
   };
 
   return (
@@ -54,12 +67,15 @@ export function ProductList({ quote, totalsByKey, onItemChange }: Props) {
               {products.map((p) => {
                 const item = quote.items[p.key];
                 const line = totalsByKey.get(p.key)!;
+                const { disabled, reason } = checkDisabled(p.key);
                 return (
                   <ProductCard
                     key={p.key}
                     product={p}
                     item={item}
                     line={line}
+                    disabled={disabled}
+                    disabledReason={reason}
                     onToggle={() => handleToggle(p.key)}
                     onChange={(partial) => onItemChange(p.key, partial)}
                   />

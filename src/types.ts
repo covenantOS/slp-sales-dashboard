@@ -1,9 +1,4 @@
-export type Category =
-  | 'local_seo'
-  | 'addon'
-  | 'web'
-  | 'paid_media'
-  | 'discount';
+export type Category = 'local_seo' | 'addon' | 'web' | 'paid_media';
 
 export type ProductKey =
   | 'local_seo_standard'
@@ -12,7 +7,6 @@ export type ProductKey =
   | 'site_seo_bundled'
   | 'site_seo_standalone'
   | 'extra_links'
-  | 'astro_rebuild'
   | 'astro_build_cash'
   | 'astro_build_finance'
   | 'ott_spectrum'
@@ -25,10 +19,14 @@ export interface Product {
   setup: number;
   monthly: number;
   isAdSpend?: boolean;
+  isOneTime?: boolean;
+  finiteMonths?: number;
   minAdSpend?: number;
-  adSpendMarginPct?: number;
   setupWaivable?: boolean;
-  requiresSeo?: boolean;
+  requiresAnyOf?: ProductKey[];
+  triggersAstroRequirement?: boolean;
+  isAstro?: boolean;
+  spectrumPartnership?: boolean;
   description: string;
   badge?: string;
   mutuallyExclusiveWith?: ProductKey[];
@@ -53,16 +51,22 @@ export interface Client {
   city: string;
   industry: string;
   notes: string;
+  hasWordPressBricks: boolean;
 }
 
 export interface RepConfig {
   name: string;
   email: string;
-  commissionRate: number;
-  adSpendMarginPct: number;
+  nonAdCommissionRate: number;
+  adCommissionRate: number;
   commitmentMonths: number;
-  recurringCommission: boolean;
 }
+
+export const COMMISSION_LIMITS = {
+  nonAd: { min: 15, max: 30 },
+  ad: { min: 15, max: 50 },
+  adSpendMargin: 15,
+} as const;
 
 export interface QuoteState {
   id?: string;
@@ -77,6 +81,8 @@ export interface LineTotals {
   name: string;
   included: boolean;
   isAdSpend: boolean;
+  isOneTime: boolean;
+  commissionMonths: number;
   setup: number;
   monthly: number;
   setupAfterDiscount: number;
@@ -87,7 +93,7 @@ export interface LineTotals {
   dayOneCash: number;
   monthlyCommission: number;
   setupCommission: number;
-  totalCommissionFirstYear: number;
+  totalCommission: number;
   commissionBase: string;
 }
 
@@ -98,7 +104,15 @@ export interface Totals {
   contractValue: number;
   monthlyCommission: number;
   setupCommission: number;
-  totalCommissionFirstYear: number;
+  totalCommission: number;
   totalDiscount: number;
   lines: LineTotals[];
+}
+
+export interface Rule {
+  id: string;
+  severity: 'warn' | 'info' | 'error';
+  title: string;
+  detail: string;
+  action?: { label: string; apply: () => void };
 }

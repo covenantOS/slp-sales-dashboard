@@ -5,7 +5,11 @@ import type {
   QuoteState,
   Totals,
 } from '../types';
+import { COMMISSION_LIMITS } from '../types';
 import { PRODUCTS } from '../data/products';
+
+const clamp = (n: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, n));
 
 const applyDiscount = (
   amount: number,
@@ -34,7 +38,6 @@ export const computeLine = (
     item.monthlyOverride !== undefined && item.monthlyOverride !== null
       ? item.monthlyOverride
       : p.monthly;
-
   const rawSetup = item.waiveSetup ? 0 : p.setup;
 
   const monthlyGross = rawMonthly * qty;
@@ -46,42 +49,54 @@ export const computeLine = (
   const monthlyAfter = mAfter.after;
   const setupAfter = sAfter.after;
 
-  const commissionRate = rep.commissionRate / 100;
-  const adSpendMargin = rep.adSpendMarginPct / 100;
+  const nonAdRate =
+    clamp(
+      rep.nonAdCommissionRate,
+      COMMISSION_LIMITS.nonAd.min,
+      COMMISSION_LIMITS.nonAd.max,
+    ) / 100;
+  const adRate =
+    clamp(rep.adCommissionRate, COMMISSION_LIMITS.ad.min, COMMISSION_LIMITS.ad.max) /
+    100;
+  const adMargin = COMMISSION_LIMITS.adSpendMargin / 100;
 
-  // Commission logic:
-  //   Ad-spend products: rep rate applied to (adSpendMargin * monthly).
-  //   Non-ad-spend: rep rate applied to monthly AND setup revenue.
+  // Number of months commission accrues for the monthly line.
+  // - Finite-term products (Astro financed): capped at their finiteMonths.
+  // - Everything else: commitmentMonths.
+  const commissionMonths = p.finiteMonths
+    ? Math.min(p.finiteMonths, rep.commitmentMonths || p.finiteMonths)
+    : rep.commitmentMonths || 12;
+
   let monthlyCommission = 0;
   let setupCommission = 0;
   let commissionBase = '';
 
   if (p.isAdSpend) {
-    const margin = monthlyAfter * adSpendMargin;
-    monthlyCommission = margin * commissionRate;
-    commissionBase = `${rep.adSpendMarginPct}% of ad spend × ${rep.commissionRate}%`;
+    const margin = monthlyAfter * adMargin;
+    monthlyCommission = margin * adRate;
+    commissionBase = `${rep.adCommissionRate}% × 15% margin`;
   } else {
-    monthlyCommission = monthlyAfter * commissionRate;
-    setupCommission = setupAfter * commissionRate;
-    commissionBase = `${rep.commissionRate}% of revenue`;
+    monthlyCommission = monthlyAfter * nonAdRate;
+    setupCommission = setupAfter * nonAdRate;
+    commissionBase = `${rep.nonAdCommissionRate}% of revenue`;
   }
 
-  const contractTotal =
-    setupAfter + monthlyAfter * (rep.commitmentMonths || 12);
+  const contractMonths = p.finiteMonths
+    ? Math.min(p.finiteMonths, rep.commitmentMonths || p.finiteMonths)
+    : rep.commitmentMonths || 12;
+  const contractTotal = setupAfter + monthlyAfter * contractMonths;
   const dayOneCash = setupAfter + monthlyAfter;
 
-  const monthsCounted = rep.recurringCommission
-    ? rep.commitmentMonths || 12
-    : 1;
-
-  const totalCommissionFirstYear =
-    setupCommission + monthlyCommission * monthsCounted;
+  const totalCommission =
+    setupCommission + monthlyCommission * commissionMonths;
 
   return {
     key,
     name: p.name,
     included: item.included,
     isAdSpend: !!p.isAdSpend,
+    isOneTime: !!p.isOneTime,
+    commissionMonths,
     setup: setupGross,
     monthly: monthlyGross,
     setupAfterDiscount: setupAfter,
@@ -92,7 +107,7 @@ export const computeLine = (
     dayOneCash,
     monthlyCommission,
     setupCommission,
-    totalCommissionFirstYear,
+    totalCommission,
     commissionBase,
   };
 };
@@ -105,7 +120,7 @@ export const computeTotals = (q: QuoteState): Totals => {
   let contractValue = 0;
   let monthlyCommission = 0;
   let setupCommission = 0;
-  let totalCommissionFirstYear = 0;
+  let totalCommission = 0;
   let totalDiscount = 0;
 
   (Object.keys(PRODUCTS) as ProductKey[]).forEach((key) => {
@@ -120,7 +135,7 @@ export const computeTotals = (q: QuoteState): Totals => {
     contractValue += line.contractTotal;
     monthlyCommission += line.monthlyCommission;
     setupCommission += line.setupCommission;
-    totalCommissionFirstYear += line.totalCommissionFirstYear;
+    totalCommission += line.totalCommission;
     totalDiscount += line.setupDiscount + line.monthlyDiscount;
   });
 
@@ -131,7 +146,7 @@ export const computeTotals = (q: QuoteState): Totals => {
     contractValue,
     monthlyCommission,
     setupCommission,
-    totalCommissionFirstYear,
+    totalCommission,
     totalDiscount,
     lines,
   };
@@ -155,10 +170,9 @@ export const blankQuote = (): QuoteState => {
     rep: {
       name: '',
       email: '',
-      commissionRate: 15,
-      adSpendMarginPct: 15,
+      nonAdCommissionRate: 15,
+      adCommissionRate: 15,
       commitmentMonths: 12,
-      recurringCommission: true,
     },
     client: {
       company: '',
@@ -169,6 +183,7 @@ export const blankQuote = (): QuoteState => {
       city: '',
       industry: '',
       notes: '',
+      hasWordPressBricks: false,
     },
     items,
   };

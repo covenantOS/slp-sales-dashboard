@@ -4,7 +4,7 @@ import {
   Download,
   FolderOpen,
   Copy,
-  FileText,
+  ExternalLink,
   Check,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -14,7 +14,7 @@ interface Props {
   onReset: () => void;
   onLoad: () => void;
   onExportJSON: () => void;
-  onExportProposal: () => void;
+  onOpenProposal: () => void;
   onCopyLink: () => void;
   saving?: boolean;
   lastSavedAt?: string | null;
@@ -26,7 +26,7 @@ export function Toolbar({
   onReset,
   onLoad,
   onExportJSON,
-  onExportProposal,
+  onOpenProposal,
   onCopyLink,
   saving,
   lastSavedAt,
@@ -49,10 +49,9 @@ export function Toolbar({
         className="btn-ghost"
         onClick={() => {
           onCopyLink();
-          setCopied(true);
+          if (quoteId) setCopied(true);
         }}
-        disabled={!quoteId}
-        title={quoteId ? 'Copy shareable link' : 'Save first to get a link'}
+        title={quoteId ? 'Copy client proposal link' : 'Save first'}
       >
         {copied ? <Check size={15} /> : <Copy size={15} />}
         {copied ? 'Copied' : 'Share'}
@@ -60,14 +59,14 @@ export function Toolbar({
       <button className="btn-ghost" onClick={onExportJSON}>
         <Download size={15} /> JSON
       </button>
-      <button className="btn-ghost" onClick={onExportProposal}>
-        <FileText size={15} /> Proposal
+      <button className="btn-outline" onClick={onOpenProposal}>
+        <ExternalLink size={15} /> Client Proposal
       </button>
       <button className="btn-ghost" onClick={onReset}>
-        <RotateCcw size={15} /> Reset
+        <RotateCcw size={15} />
       </button>
       <button
-        className="btn-brand"
+        className="btn-red"
         onClick={() => onSave()}
         disabled={saving}
         title={lastSavedAt ? `Last saved ${lastSavedAt}` : 'Save quote'}

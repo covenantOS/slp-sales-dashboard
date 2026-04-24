@@ -6,12 +6,14 @@ import { ProductList } from './components/ProductList';
 import { TotalsSummary } from './components/TotalsSummary';
 import { Toolbar } from './components/Toolbar';
 import { LoadDialog } from './components/LoadDialog';
+import { RulesBanner } from './components/RulesBanner';
+import { ClientProposal } from './components/ClientProposal';
 import { blankQuote, computeTotals } from './lib/calc';
-import { buildProposalHTML } from './lib/proposal';
+import { evaluateRules } from './lib/rules';
 import type { LineItem, ProductKey, QuoteState } from './types';
 import { Sparkles } from 'lucide-react';
 
-const STORAGE_KEY = 'slp_quote_draft_v1';
+const STORAGE_KEY = 'slp_quote_draft_v2';
 
 const loadDraft = (): QuoteState => {
   try {
@@ -32,18 +34,28 @@ const loadDraft = (): QuoteState => {
 };
 
 export default function App() {
+  // Path-based routing — /p/:id is the client-facing proposal view
+  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const proposalMatch = path.match(/^\/p\/([a-z0-9]+)\/?$/i);
+
+  if (proposalMatch) {
+    return <ClientProposal id={proposalMatch[1]} />;
+  }
+
+  return <Dashboard />;
+}
+
+function Dashboard() {
   const [quote, setQuote] = useState<QuoteState>(loadDraft);
   const [loadOpen, setLoadOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Persist draft locally.
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(quote));
   }, [quote]);
 
-  // Load shared link (?q=id)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('q');
@@ -78,6 +90,20 @@ export default function App() {
       items: { ...q.items, [key]: { ...q.items[key], ...partial } },
     }));
   };
+
+  const rules = useMemo(
+    () =>
+      evaluateRules(quote, {
+        setWordPressOverride: (on) =>
+          setQuote((q) => ({
+            ...q,
+            client: { ...q.client, hasWordPressBricks: on },
+          })),
+        toggleItem: updateItem,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [quote],
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -121,24 +147,27 @@ export default function App() {
     );
   };
 
-  const handleExportProposal = () => {
-    const html = buildProposalHTML(quote, totals);
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank');
-    if (!w) {
-      triggerDownload(
-        blob,
-        `slp-proposal-${quote.client.company || 'untitled'}.html`,
-      );
+  const handleOpenProposal = async () => {
+    let id = quote.id;
+    if (!id) {
+      await handleSave();
+      id = quote.id;
+    }
+    if (id) {
+      window.open(`/p/${id}`, '_blank');
+    } else {
+      showToast('Save first to open proposal');
     }
   };
 
   const handleCopyLink = async () => {
-    if (!quote.id) return;
-    const url = `${window.location.origin}${window.location.pathname}?q=${quote.id}`;
+    if (!quote.id) {
+      showToast('Save first to copy link');
+      return;
+    }
+    const url = `${window.location.origin}/p/${quote.id}`;
     await navigator.clipboard.writeText(url);
-    showToast('Link copied');
+    showToast('Client link copied');
   };
 
   const handleLoadQuote = async (id: string) => {
@@ -162,16 +191,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {/* Top bar */}
-      <header className="sticky top-0 z-30 bg-ink-50/85 backdrop-blur border-b border-ink-100">
-        <div className="max-w-[1400px] mx-auto px-5 py-3 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-ink-100">
+        <div className="max-w-[1440px] mx-auto px-5 py-3 flex items-center justify-between gap-4">
           <Logo />
           <Toolbar
             onSave={handleSave}
             onReset={handleReset}
             onLoad={() => setLoadOpen(true)}
             onExportJSON={handleExportJSON}
-            onExportProposal={handleExportProposal}
+            onOpenProposal={handleOpenProposal}
             onCopyLink={handleCopyLink}
             saving={saving}
             lastSavedAt={lastSavedAt}
@@ -180,29 +208,32 @@ export default function App() {
         </div>
       </header>
 
-      {/* Hero strip */}
-      <div className="max-w-[1400px] mx-auto px-5 pt-8 pb-4">
-        <div className="flex items-center gap-2">
-          <span className="chip bg-brand-50 text-brand-700">
+      <div className="max-w-[1440px] mx-auto px-5 pt-8 pb-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="chip bg-slp-50 text-slp-700">
             <Sparkles size={11} /> 2026 Pricing
           </span>
           <span className="chip bg-ink-100 text-ink-600">
-            Live calculator · Auto-saved
+            Smart rules · Auto-saved
           </span>
           {lastSavedAt && (
             <span className="chip bg-white border border-ink-200 text-ink-500">
               Saved {lastSavedAt}
             </span>
           )}
+          {quote.id && (
+            <span className="chip bg-ink-900 text-white">
+              ID · {quote.id}
+            </span>
+          )}
         </div>
-        <h1 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-ink-900">
+        <h1 className="mt-3 font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-ink-900">
           Build a quote.{' '}
-          <span className="text-ink-400">See your commission in real time.</span>
+          <span className="text-slp-500">See your commission in real time.</span>
         </h1>
       </div>
 
-      {/* Main grid */}
-      <main className="max-w-[1400px] mx-auto px-5 pb-24 grid grid-cols-12 gap-6">
+      <main className="max-w-[1440px] mx-auto px-5 pb-24 grid grid-cols-12 gap-6">
         <div className="col-span-12 lg:col-span-4 xl:col-span-3 space-y-4">
           <RepPanel
             rep={quote.rep}
@@ -214,7 +245,8 @@ export default function App() {
           />
         </div>
 
-        <div className="col-span-12 lg:col-span-8 xl:col-span-6">
+        <div className="col-span-12 lg:col-span-8 xl:col-span-6 space-y-4">
+          <RulesBanner rules={rules} />
           <ProductList
             quote={quote}
             totalsByKey={totalsByKey}

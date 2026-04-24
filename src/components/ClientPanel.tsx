@@ -1,4 +1,4 @@
-import { Building2 } from 'lucide-react';
+import { Building2, ShieldAlert } from 'lucide-react';
 import type { Client } from '../types';
 
 interface Props {
@@ -19,7 +19,7 @@ export function ClientPanel({ client, onChange }: Props) {
             Everything shown on the proposal.
           </div>
         </div>
-        <div className="h-9 w-9 rounded-xl bg-accent-50 text-accent-600 flex items-center justify-center">
+        <div className="h-9 w-9 rounded-xl bg-ink-100 text-ink-700 flex items-center justify-center">
           <Building2 size={18} />
         </div>
       </div>
@@ -89,13 +89,58 @@ export function ClientPanel({ client, onChange }: Props) {
           />
         </div>
         <div className="col-span-2">
-          <label className="label block mb-1.5">Notes</label>
+          <label className="label block mb-1.5">Notes (internal)</label>
           <textarea
-            className="input min-h-[72px] resize-y"
-            placeholder="Internal notes, competitive context, unique deliverables…"
+            className="input min-h-[64px] resize-y"
+            placeholder="Competitive context, unique deliverables…"
             value={client.notes}
             onChange={(e) => update('notes', e.target.value)}
           />
+        </div>
+        <div className="col-span-2">
+          <button
+            onClick={() => update('hasWordPressBricks', !client.hasWordPressBricks)}
+            className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition ${
+              client.hasWordPressBricks
+                ? 'bg-slp-50 border-slp-200'
+                : 'bg-white border-ink-200 hover:border-ink-300'
+            }`}
+          >
+            <div
+              className={`shrink-0 mt-0.5 h-5 w-5 rounded-md border flex items-center justify-center ${
+                client.hasWordPressBricks
+                  ? 'bg-slp-500 border-slp-500'
+                  : 'bg-white border-ink-300'
+              }`}
+            >
+              {client.hasWordPressBricks && (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path
+                    d="M2.5 6l2.5 2.5L9.5 3.5"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-ink-900 flex items-center gap-1.5">
+                <ShieldAlert
+                  size={13}
+                  className={
+                    client.hasWordPressBricks ? 'text-slp-600' : 'text-ink-400'
+                  }
+                />
+                Client runs WordPress with Bricks or Elementor
+              </div>
+              <div className="text-[11px] text-ink-500 mt-0.5 leading-snug">
+                Checking this removes the mandatory Astro rebuild, but we'll
+                still recommend it — it materially outperforms WP for SEO.
+              </div>
+            </div>
+          </button>
         </div>
       </div>
     </div>
